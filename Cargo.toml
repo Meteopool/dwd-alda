@@ -6,6 +6,7 @@ rust-version = "1.88"
 description = "Follow new files on DWD opendata via alda.log"
 license = "MIT"
 readme = "README.md"
+repository = "https://github.com/Meteopool/dwd-alda"
 keywords = ["dwd", "radar", "weather", "opendata"]
 categories = ["command-line-utilities", "science"]
 
