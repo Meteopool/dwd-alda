@@ -4,6 +4,18 @@ Follow new files on [DWD opendata](https://opendata.dwd.de/) as they appear.
 
 DWD appends a line to `alda.log` for every file it publishes. `dwd-alda` tails that log over HTTP Range requests, so you see new files within ~2 s, without listing directories or guessing file names.
 
+Thanks to Holger Kiehl at DWD for pointing us to `alda.log` and suggesting this way of pulling. Questions about the data itself go to [opendata@dwd.de](mailto:opendata@dwd.de).
+
+## Why
+
+Getting new files from opendata quickly is surprisingly awkward:
+
+- `content.log.bz2` is several MB, compressed so it can't be read partially, and lags a few minutes behind.
+- Directory listings are current but large (~1 MB each for radar sweeps), and every product and site has its own directory.
+- Guessing file names from the pattern causes lots of 404s, and `LATEST` files don't exist everywhere.
+
+`alda.log` lists every file the moment it is placed. Tailing it costs one small request per second for the whole server, gives exact file names, and nothing has to be guessed or re-listed.
+
 ## Install
 
 ```sh
