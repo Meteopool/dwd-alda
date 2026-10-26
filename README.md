@@ -78,6 +78,8 @@ loop {
 
 Each poll requests `bytes=<offset-1>-`. The overlapping byte confirms the file still continues where we left off, so a single request both detects growth and fetches it. The log rotates daily around 00:00 UTC; the rest of the old log is read from `alda.log.1` before switching, so no lines are lost.
 
+opendata runs on two separate servers, and on failover the IP moves to the other one, whose log has the same files in a different order. The header line (`node=`, `inode=`) is checked every 10 s; after a switch the new log is replayed from 15 minutes before the last line seen, and files already emitted are skipped.
+
 ## License
 
 MIT

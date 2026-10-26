@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use dwd_alda::{Error, Filter, Start, Tailer, TailerConfig};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -71,7 +72,11 @@ async fn serve(files: Files) -> String {
 }
 
 fn hdr(inode: &str) -> String {
-    format!("# V1.0 inode={inode} node=x\n# Format: <unix time>|<size in bytes>|<file name with path>\n")
+    hdr_on(inode, "x")
+}
+
+fn hdr_on(inode: &str, node: &str) -> String {
+    format!("# V1.0 inode={inode} node={node}\n# Format: <unix time>|<size in bytes>|<file name with path>\n")
 }
 
 fn line(i: u32) -> String {
@@ -152,6 +157,74 @@ async fn stale_response_does_not_reset() {
     assert_eq!(t.state().offset as usize, full.len());
     set(&files, "alda.log", &(full.clone() + &line(2)));
     assert_eq!(names(&t.poll().await.unwrap()), ["f0002"]);
+}
+
+// The other node has the same files in a different order, and its log is aligned so
+// the overlap byte still matches: only the header check notices the switch.
+#[tokio::test]
+async fn node_switch_replays_without_repeats() {
+    let files: Files = Default::default();
+    let base = serve(files.clone()).await;
+    set(&files, "alda.log", &(hdr_on("A", "x") + &line(0) + &line(1) + &line(2)));
+    let cfg = TailerConfig { base, start: Start::Beginning, header_check: Duration::from_millis(200) };
+    let mut t = Tailer::connect(reqwest::Client::new(), cfg).await.unwrap();
+    let mut got = t.poll().await.unwrap();
+
+    let other = hdr_on("Q", "y") + &line(1) + &line(0) + &line(3) + &line(2) + &line(4);
+    set(&files, "alda.log", &other);
+    got.extend(t.poll().await.unwrap());
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    got.extend(t.poll().await.unwrap());
+    set(&files, "alda.log", &(other + &line(5)));
+    got.extend(t.poll().await.unwrap());
+
+    let mut n = names(&got);
+    n.sort();
+    assert_eq!(n, ["f0000", "f0001", "f0002", "f0003", "f0004", "f0005"]);
+    assert_eq!(t.state().node, "y");
+}
+
+#[tokio::test]
+async fn node_switch_detected_by_overlap() {
+    let files: Files = Default::default();
+    let base = serve(files.clone()).await;
+    set(&files, "alda.log", &(hdr_on("A", "x") + &line(0) + &line(1)));
+    let mut t = tailer(base, Start::Beginning).await;
+    let mut got = t.poll().await.unwrap();
+    // Longer lines on the other node: the overlap byte no longer matches.
+    let other = hdr_on("Q", "y") + &line(1) + "1792627202|2|radar/sites/sweep_vol_z/boo/f0002-longer\n" + &line(0);
+    set(&files, "alda.log", &other);
+    got.extend(t.poll().await.unwrap());
+    assert_eq!(names(&got), ["f0000", "f0001", "f0002-longer"]);
+}
+
+#[tokio::test]
+async fn resume_ignores_reused_inode() {
+    let files: Files = Default::default();
+    let base = serve(files.clone()).await;
+    set(&files, "alda.log", &(hdr("A") + &line(0)));
+    let state = tailer(base.clone(), Start::End).await.state().clone();
+    // Days later: same node and inode, different file.
+    let later = hdr("A") + &line(7) + &line(8);
+    set(&files, "alda.log", &later);
+    let mut t = tailer(base, Start::Resume(state)).await;
+    assert!(t.poll().await.unwrap().is_empty());
+    set(&files, "alda.log", &(later + &line(9)));
+    assert_eq!(names(&t.poll().await.unwrap()), ["f0009"]);
+}
+
+#[tokio::test]
+async fn resume_on_other_node_replays() {
+    let files: Files = Default::default();
+    let base = serve(files.clone()).await;
+    set(&files, "alda.log", &(hdr_on("A", "x") + &line(0) + &line(1)));
+    let mut first = tailer(base.clone(), Start::Beginning).await;
+    first.poll().await.unwrap();
+    let state = first.state().clone();
+    set(&files, "alda.log", &(hdr_on("Q", "y") + &line(1) + &line(2) + &line(0)));
+    let mut t = tailer(base, Start::Resume(state)).await;
+    // Nothing is remembered across a restart, so the replay may repeat lines.
+    assert_eq!(names(&t.poll().await.unwrap()), ["f0001", "f0002", "f0000"]);
 }
 
 #[tokio::test]
