@@ -1,0 +1,38 @@
+[package]
+name = "dwd-alda"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Follow new files on DWD opendata via alda.log"
+license = "MIT"
+readme = "README.md"
+keywords = ["dwd", "radar", "weather", "opendata"]
+categories = ["command-line-utilities", "science"]
+
+[lib]
+name = "dwd_alda"
+path = "src/lib.rs"
+
+[[bin]]
+name = "dwd-alda"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+bytes = "1"
+clap = { version = "4.5", features = ["derive"] }
+env_logger = "0.11"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+humantime = "2"
+log = "0.4"
+memchr = "2"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "signal", "fs", "io-util", "sync", "net"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
