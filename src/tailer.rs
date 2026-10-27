@@ -21,7 +21,7 @@ const INCONSISTENT_GIVE_UP: Duration = Duration::from_secs(120);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct State {
-    /// opendata runs on two independent servers; the IP moves on failover.
+    /// opendata runs on multiple independent servers; the IP moves on failover.
     #[serde(default)]
     pub node: String,
     pub inode: String,
@@ -60,7 +60,7 @@ impl Default for TailerConfig {
 }
 
 /// Follows `alda.log` with HTTP Range requests, including the daily rotation to
-/// `alda.log.1` and switches between the two opendata nodes.
+/// `alda.log.1` and switches between opendata nodes.
 pub struct Tailer {
     client: Client,
     base: String,
