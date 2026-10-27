@@ -80,6 +80,8 @@ Each poll requests `bytes=<offset-1>-`. The overlapping byte confirms the file s
 
 opendata runs on two separate servers, and on failover the IP moves to the other one, whose log has the same files in a different order. The header line (`node=`, `inode=`) is checked every 10 s; after a switch the new log is replayed from 15 minutes before the last line seen, and files already emitted are skipped.
 
+Inode numbers alone don't identify a log: at rotation the new `alda.log` gets the inode just freed by the deleted `alda.log.1`, so the same two numbers alternate day by day. A log is therefore identified by node, inode and its first line, which carries that day's first timestamp. A saved `--state` from an older log with a reused inode is detected and the tailer starts at the end instead of resuming at a wrong offset.
+
 ## License
 
 MIT
